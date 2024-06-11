@@ -1,0 +1,13 @@
+prefix=/workspaces/lab_59_cust_lifetime_py/venv
+exec_prefix=/workspaces/lab_59_cust_lifetime_py/venv
+libdir=/workspaces/lab_59_cust_lifetime_py/venv/lib
+sharedlibdir=/workspaces/lab_59_cust_lifetime_py/venv/lib
+includedir=/workspaces/lab_59_cust_lifetime_py/venv/include
+
+Name: zlib
+Description: zlib compression library
+Version: 1.2.13
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz
+Cflags: -I${includedir}

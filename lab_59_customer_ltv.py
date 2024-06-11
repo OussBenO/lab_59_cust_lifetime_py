@@ -77,18 +77,18 @@ cdnow_cust_id_subset_df = cdnow_df \
     .groupby(['customer_id', 'date']) \
     .sum() \
     .reset_index()
-
 pn.ggplot(
-    pn.aes('date', 'price', group = 'customer_id'),
-    data = cdnow_cust_id_subset_df
-) \
-    + pn.geom_line() \
-    + pn.geom_point() \
-    + pn.facet_wrap('customer_id') \
-    + pn.scale_x_date(
-        date_breaks = "1 year",
-        date_labels = "%Y"
-    )
+    data=cdnow_cust_id_subset_df,
+    mapping=pn.aes(x='date', y='price', group='customer_id')
+) + \
+pn.geom_line() + \
+pn.geom_point() + \
+pn.facet_wrap('customer_id') + \
+pn.scale_x_date(
+    date_breaks="1 year",
+    date_labels="%Y"
+)
+
 
 
 # 3.0 MACHINE LEARNING ----
@@ -117,28 +117,28 @@ temporal_out_df = cdnow_df \
 #   - Need to think about what features to include
 
 # Make Targets from out data ----
-
+# Make Recency (Date) Features from in data ----
+# Make Targets from out data ----
 targets_df = temporal_out_df \
-    .drop('quantity', axis=1) \
+    .drop(['quantity', 'date'], axis=1) \
     .groupby('customer_id') \
     .sum() \
-    .rename({'price': 'spend_90_total'}, axis = 1) \
-    .assign(spend_90_flag = 1)
-
-# Make Recency (Date) Features from in data ----
+    .rename(columns={'price': 'spend_90_total'}) \
+    .assign(spend_90_flag=1)
 
 max_date = temporal_in_df['date'].max()
+if temporal_in_df.empty:
+    recency_features_df = pd.DataFrame(columns=["recency"])  # Create an empty DataFrame
+else:
+    recency_features_df = temporal_in_df \
+        [['customer_id', 'date']] \
+        .groupby('customer_id') \
+        .apply(
+            lambda x: (x['date'].max() - max_date) / pd.to_timedelta(1, "day")
+        ) \
+        .to_frame() \
+        .set_axis(["recency"], axis=1)
 
-recency_features_df = temporal_in_df \
-    [['customer_id', 'date']] \
-    .groupby('customer_id') \
-    .apply(
-        lambda x: (x['date'].max() - max_date) / pd.to_timedelta(1, "day")
-    ) \
-    .to_frame() \
-    .set_axis(["recency"], axis=1)
-
-recency_features_df
 
 # Make Frequency (Count) Features from in data ----
 
@@ -147,8 +147,6 @@ frequency_features_df = temporal_in_df \
     .groupby('customer_id') \
     .count() \
     .set_axis(['frequency'], axis=1)
-
-frequency_features_df
 
 # Make Price (Monetary) Features from in data ----
 
@@ -160,8 +158,6 @@ price_features_df = temporal_in_df \
         }
     ) \
     .set_axis(['price_sum', 'price_mean'], axis = 1)
-
-price_features_df
 
 # 3.3 COMBINE FEATURES ----
 
@@ -177,10 +173,6 @@ features_df = pd.concat(
     .fillna(0)
 
 # 4.0 MACHINE LEARNING -----
-
-from xgboost import XGBClassifier, XGBRegressor
-
-from sklearn.model_selection import GridSearchCV
 
 X = features_df[['recency', 'frequency', 'price_sum', 'price_mean']]
 
@@ -204,12 +196,6 @@ xgb_reg_model = GridSearchCV(
 )
 
 xgb_reg_model.fit(X, y_spend)
-
-xgb_reg_model.best_score_
-
-xgb_reg_model.best_params_
-
-xgb_reg_model.best_estimator_
 
 predictions_reg = xgb_reg_model.predict(X)
 
@@ -235,12 +221,6 @@ xgb_clf_model = GridSearchCV(
 
 xgb_clf_model.fit(X, y_prob)
 
-xgb_clf_model.best_score_
-
-xgb_clf_model.best_params_
-
-xgb_clf_model.best_estimator_
-
 predictions_clf = xgb_clf_model.predict_proba(X)
 
 # 4.3 FEATURE IMPORTANCE (GLOBAL) ----
@@ -249,120 +229,4 @@ predictions_clf = xgb_clf_model.predict_proba(X)
 imp_spend_amount_dict = xgb_reg_model \
     .best_estimator_ \
     .get_booster() \
-    .get_score(importance_type = 'gain') 
-
-imp_spend_amount_df = pd.DataFrame(
-    data  = {
-        'feature':list(imp_spend_amount_dict.keys()),
-        'value':list(imp_spend_amount_dict.values())
-    }
-) \
-    .assign(
-        feature = lambda x: cat.cat_reorder(x['feature'] , x['value'])
-    )
-
-pn.ggplot(
-    pn.aes('feature', 'value'),
-    data = imp_spend_amount_df
-) \
-    + pn.geom_col() \
-    + pn.coord_flip()
-
-# Importance | Spend Probability Model
-imp_spend_prob_dict = xgb_clf_model \
-    .best_estimator_ \
-    .get_booster() \
-    .get_score(importance_type = 'gain') 
-
-imp_spend_prob_df = pd.DataFrame(
-    data  = {
-        'feature':list(imp_spend_prob_dict.keys()),
-        'value':list(imp_spend_prob_dict.values())
-    }
-) \
-    .assign(
-        feature = lambda x: cat.cat_reorder(x['feature'] , x['value'])
-    )
-
-pn.ggplot(
-    pn.aes('feature', 'value'),
-    data = imp_spend_prob_df
-) \
-    + pn.geom_col() \
-    + pn.coord_flip() 
-
-# 5.0 SAVE WORK ----
-
-# Save Predictions
-predictions_df = pd.concat(
-    [
-        pd.DataFrame(predictions_reg).set_axis(['pred_spend'], axis=1),
-        pd.DataFrame(predictions_clf)[[1]].set_axis(['pred_prob'], axis=1),
-        features_df.reset_index()
-    ], 
-    axis=1
-)
-
-predictions_df
-
-predictions_df.to_pickle("artifacts/predictions_df.pkl")
-
-pd.read_pickle('artifacts/predictions_df.pkl')
-
-# Save Importance
-imp_spend_amount_df.to_pickle("artifacts/imp_spend_amount_df.pkl")
-imp_spend_prob_df.to_pickle("artifacts/imp_spend_prob_df.pkl")
-
-pd.read_pickle("artifacts/imp_spend_amount_df.pkl")
-
-# Save Models
-joblib.dump(xgb_reg_model, 'artifacts/xgb_reg_model.pkl')
-joblib.dump(xgb_clf_model, 'artifacts/xgb_clf_model.pkl')
-
-model = joblib.load('artifacts/xgb_reg_model.pkl')
-model.predict(X)
-
-
-# 6.0 HOW CAN WE USE THIS INFORMATION ---- 
-
-# 6.1 Which customers have the highest spend probability in next 90-days? 
-#     - Target for new products similar to what they have purchased in the past
-
-predictions_df \
-    .sort_values('pred_prob', ascending=False)
-
-# 6.2 Which customers have recently purchased but are unlikely to buy? 
-#    - Incentivize actions to increase probability
-#    - Provide discounts, encourage referring a friend, nurture by letting them know what's coming
-
-predictions_df \
-    [
-        predictions_df['recency'] > -90
-    ] \
-    [
-        predictions_df['pred_prob'] < 0.20
-    ] \
-    .sort_values('pred_prob', ascending=False)
-
-
-# 6.3 Missed opportunities: Big spenders that could be unlocked ----
-#    - Send bundle offers encouraging volume purchases
-#    - Focus on missed opportunities
-
-predictions_df \
-    [
-        predictions_df['spend_90_total'] == 0.0
-    ] \
-    .sort_values('pred_spend', ascending=False) 
-
-# 7.0 NEXT STEPS ----
-# - It's really exciting what you can do with Machine Learning.
-#   Very powerful. But you have to put in the work.
-
-# - Learning Data Wrangling, Modeling, and Visualization (101)
-# - Model Improvement (Coming Soon):
-#   - Algorithms (201-P)
-#   - AutoML (201-P)
-#   - Hyper Parameter Tuning (201-P)
-# - Forecasting: When will customers purchase? (TBD)
-# - Web Applications, API's & Production (202-P)
+    .get_score

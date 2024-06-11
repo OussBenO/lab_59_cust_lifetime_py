@@ -6,8 +6,8 @@
 # LIBRARIES
 
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc
+from dash import html as html
 from dash.dependencies import Input, Output, State
 
 import dash_bootstrap_components as dbc
@@ -28,7 +28,7 @@ app = dash.Dash(
 
 PLOT_BACKGROUND = 'rgba(0,0,0,0)'
 PLOT_FONT_COLOR = 'white'
-LOGO = "https://www.business-science.io/img/business-science-logo.png"
+LOGO = "https://ehei.ma/logohaute.png"
 
 # PATHS
 BASE_PATH = pathlib.Path(__file__).parent.resolve()
@@ -55,12 +55,11 @@ navbar = dbc.Navbar(
             dbc.Row(
                 [
                     dbc.Col(html.Img(src=LOGO, height="30px")),
-                    dbc.Col(dbc.NavbarBrand("Customer Spend Prediction", className="ml-2")),
+                    dbc.Col(dbc.NavbarBrand("Predictions selon le montant d'achats effectués", className="ml-2")),
                 ],
                 align="center",
-                no_gutters=True,
             ),
-            href="https://www.business-science.io/",
+            
         ),
         dbc.NavbarToggler(id="navbar-toggler", n_clicks=0),
         dbc.Collapse(
@@ -71,6 +70,7 @@ navbar = dbc.Navbar(
     dark=True,
 )
 
+
 app.layout = html.Div(
     children = [
         navbar, 
@@ -79,15 +79,15 @@ app.layout = html.Div(
                 dbc.Col(
                     [
                         
-                        html.H3("Welcome to the Customer Analytics Dashboard"),
+                        html.H3("Bienvenue sur le tableau de bord d'analyse des clients"),
                         html.Div(
                             id="intro",
-                            children="Explore Customers by Predicted Spend versus Actual Spend during the 90-day evaluation period.",
+                            children="Explorez les clients en fonction des dépenses prévues par rapport aux dépenses réelles pendant la période d'évaluation de 90 jours.",
                         ),
                         html.Br(),
                         html.Hr(),
-                        html.H5("Spend Actual vs Predicted"),
-                        html.P("Segment Customers that were predicted to spend but didn't. Then target these customers with targeted emails."),
+                        html.H5("Dépenses Réelles vs Prédites"),
+                        html.P("Segmentez les clients qui étaient censés dépenser mais ne l'ont pas fait. Ensuite, ciblez ces clients avec des e-mails ciblés."),
                         dcc.Slider(
                             id    = 'spend-slider', 
                             value = df['spend_actual_vs_pred'].max(),
